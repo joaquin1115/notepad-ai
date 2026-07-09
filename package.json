@@ -1,0 +1,14 @@
+{
+  "name": "notepad-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser notepad that sends selected text or current note to Azure AI Foundry-hosted GPT with a keyboard shortcut.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
