@@ -43,6 +43,7 @@ function getAzureConfig() {
   if (missing.length > 0) {
     const error = new Error(`Missing required Azure OpenAI configuration: ${missing.join(', ')}`);
     error.statusCode = 500;
+    error.expose = true;
     throw error;
   }
 
@@ -71,10 +72,20 @@ async function createAnswer(prompt) {
     })
   });
 
-  const payload = await response.json();
+  const responseText = await response.text();
+  let payload = {};
+
+  try {
+    payload = responseText ? JSON.parse(responseText) : {};
+  } catch (_error) {
+    payload = { error: { message: responseText } };
+  }
+
   if (!response.ok) {
-    const error = new Error(payload.error?.message || 'Azure OpenAI rejected the request.');
-    error.statusCode = response.status;
+    const upstreamMessage = payload.error?.message || payload.message || response.statusText || 'Azure OpenAI rejected the request.';
+    const error = new Error(`Azure OpenAI error (${response.status}): ${upstreamMessage}`);
+    error.statusCode = response.status >= 500 ? 502 : response.status;
+    error.expose = true;
     throw error;
   }
 
@@ -127,7 +138,7 @@ const server = createServer(async (req, res) => {
 
     console.error(error);
     sendJson(res, statusCode, {
-      error: statusCode >= 500 ? 'The assistant could not answer right now.' : error.message
+      error: error.expose || statusCode < 500 ? error.message : 'The assistant could not answer right now.'
     });
   }
 });

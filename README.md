@@ -48,3 +48,7 @@ Las variables de Azure OpenAI no se guardan en GitHub Actions por defecto; deben
 4. Descarga el publish profile de la Web App y guárdalo en GitHub como secreto `AZURE_WEBAPP_PUBLISH_PROFILE`.
 5. Guarda el nombre de la Web App como variable de repositorio `AZURE_WEBAPP_NAME`.
 6. Ejecuta el workflow o haz push a `main`.
+
+## Solución de problemas
+
+Si al usar `Ctrl+Enter` aparece un error en el notepad, revisa primero que las tres variables obligatorias estén configuradas en App Service y que `AZURE_OPENAI_DEPLOYMENT` sea el nombre exacto del deployment del modelo. La aplicación muestra los errores de configuración y los errores devueltos por Azure OpenAI sin exponer la clave, para que no tengas que revisar logs solo para saber qué variable o deployment está mal.
