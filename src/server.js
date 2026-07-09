@@ -32,60 +32,74 @@ async function readJson(req) {
 function getAzureConfig() {
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
   const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21';
+  const model = process.env.AZURE_OPENAI_MODEL;
+
   const missing = [
     !endpoint && 'AZURE_OPENAI_ENDPOINT',
     !apiKey && 'AZURE_OPENAI_API_KEY',
-    !deployment && 'AZURE_OPENAI_DEPLOYMENT'
+    !model && 'AZURE_OPENAI_MODEL'
   ].filter(Boolean);
 
   if (missing.length > 0) {
-    const error = new Error(`Missing required Azure OpenAI configuration: ${missing.join(', ')}`);
+    const error = new Error(
+      `Missing required Azure OpenAI configuration: ${missing.join(', ')}`
+    );
     error.statusCode = 500;
-    error.expose = true;
     throw error;
   }
 
-  return { endpoint: endpoint.replace(/\/$/, ''), apiKey, deployment, apiVersion };
+  return {
+    endpoint: endpoint.replace(/\/$/, ''),
+    apiKey,
+    model
+  };
 }
 
 async function createAnswer(prompt) {
-  const { endpoint, apiKey, deployment, apiVersion } = getAzureConfig();
-  const url = `${endpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+  const { endpoint, apiKey, model } = getAzureConfig();
+
+  const url = `${endpoint}/openai/v1/chat/completions`;
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'api-key': apiKey
+      'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
+      model,
       messages: [
         {
           role: 'system',
-          content: process.env.SYSTEM_PROMPT || 'You are a concise assistant writing directly into a plain notepad. Answer without markdown unless it is useful.'
+          content:
+            process.env.SYSTEM_PROMPT ||
+            'You are a concise assistant writing directly into a plain notepad. Answer without markdown unless it is useful.'
         },
-        { role: 'user', content: prompt }
+        {
+          role: 'user',
+          content: prompt
+        }
       ],
-      temperature: Number(process.env.AZURE_OPENAI_TEMPERATURE || 0.7),
-      stream: false
+      max_completion_tokens: Number(
+        process.env.AZURE_OPENAI_MAX_TOKENS || 4096
+      ),
+      temperature: Number(
+        process.env.AZURE_OPENAI_TEMPERATURE || 0.7
+      ),
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      stop: []
     })
   });
 
-  const responseText = await response.text();
-  let payload = {};
-
-  try {
-    payload = responseText ? JSON.parse(responseText) : {};
-  } catch (_error) {
-    payload = { error: { message: responseText } };
-  }
+  const payload = await response.json();
 
   if (!response.ok) {
-    const upstreamMessage = payload.error?.message || payload.message || response.statusText || 'Azure OpenAI rejected the request.';
-    const error = new Error(`Azure OpenAI error (${response.status}): ${upstreamMessage}`);
-    error.statusCode = response.status >= 500 ? 502 : response.status;
-    error.expose = true;
+    const error = new Error(
+      payload.error?.message || 'Azure OpenAI rejected the request.'
+    );
+    error.statusCode = response.status;
     throw error;
   }
 
